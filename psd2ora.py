@@ -15,7 +15,8 @@ try:
  import xml.etree.cElementTree as ET
 except ImportError:
  import xml.etree.ElementTree as ET
-import PythonMagick as Magick
+
+#import PythonMagick as Magick
 
 
 def setORAlayer(stack,src,name,x,y,visibility):
@@ -73,7 +74,7 @@ psd_filename=remainder[0]
 if ora_filename=="":
    ora_filename=remainder[0].replace(".psd",".ora")
    if ora_filename.endswith(".ora")==False:
-	   ora_filename+=".ora"
+       ora_filename+=".ora"
 
 
 ########################################################################
@@ -91,46 +92,40 @@ if ora_filename=="":
 #prepare xml
 
 #prepare tmp folders
-tmpfolder = tempfile.mkdtemp('_cmykpsd2ora')
+tmpfolder = tempfile.mkdtemp('_psd2ora')
 datafolder = tmpfolder+'/data'
 thumbnailfolder = tmpfolder+'/Thumbnails'
 os.mkdir(datafolder)
 os.mkdir(thumbnailfolder)
 
 
-
 #####################################################################
 
+#Extract Layers as Png
+fr=os.popen("convert "+psd_filename+" -channel RGBA -alpha Set -colorspace rgb -verbose info "+datafolder+"/output.png").read()    
 
-fr=os.popen("convert /tmp/"+psd_filename+" -channel RGBA -alpha Set -colorspace rgb -verbose info "+datafolder+"/output.png").read()    
-
-images=re.findall("output\.png\[(\d*)\].*[\+\-](\d*)[\+\-](\d*)\s", fr)    
-
-
-
-wt=os.
-
-## identify /tmp/tmpdPPuTQ_cmykpsd2ora/data/output-0.png 
-#/tmp/tmpdPPuTQ_cmykpsd2ora/data/output-0.png PNG 5250x3450 5250x3450+0+0 8-bit DirectClass 7.735MB 0.010u 0:00.039
-##
+#get layers atributes list
+layers=re.findall("output\.png\[(\d*)\] PSD (\d*)x(\d*).*[\+\-](\d*)[\+\-](\d*)\s", fr)    
 
 
-outputWidth=
-outputHeight=
+# identify output-0.png 
+# output-0.png PNG 5250x3450 5250x3450+0+0 8-bit DirectClass 7.735MB 0.010u 0:00.039
+#TODO CHECK Last or First image is full width height render?
+index,outputWidth,outputHeight,offsetx,offsety=layers[0]
 
 #build image attributes
 image = ET.Element('image')
 imageAttr = image.attrib
-imageAttr['w'] = outputWidth
-imageAttr['h'] = outputHeight
+imageAttr['w'] = ""+outputWidth
+imageAttr['h'] = ""+outputHeight
 imageAttr['xres']= '300'
 imageAttr['yres']= '300' #hardcoded maybe dynamic?
 
 
 stack = ET.SubElement(image, 'stack')
-for imagetemp in reversed(images):
-    index,x,y = imagetemp
-    stack=setORAlayer(stack,'data/output-'+str(index)+'.png','layer'+index,x,y,'Yes')
+for layer in reversed(layers):
+    index,width,height,offsetx,offsety = layer
+    stack=setORAlayer(stack,'data/output-'+str(index)+'.png','layer'+index,offsetx,offsety,'Yes')
 
 
 #write stack.xml
@@ -141,10 +136,10 @@ f.write(xml)
 f.close()
 
 
+#create thumbnail
 thump=os.popen("convert -size 256x256 "+datafolder+"/output-0.png "+thumbnailfolder+"/thumbnail.png").read()    
 
-
-#ok now the zip.....
+#now the zip.....
 ora = zipfile.ZipFile(ora_filename, 'w')
 ora.writestr('mimetype', 'image/openraster',zipfile.ZIP_STORED)
 ora.write(tmpfolder+"/stack.xml","stack.xml",zipfile.ZIP_DEFLATED)
@@ -157,5 +152,4 @@ for img in os.listdir(datafolder):
 ora.close()
 
 #and finaly delete tmpfolder
-
-#shutil.rmtree(tmpfolder)
+shutil.rmtree(tmpfolder)
